@@ -1,0 +1,12 @@
+yolact_edge_node:
+  ros__parameters:
+    pointcloud2_topic: "/d435i/camera/pointcloud"
+    model_weights_file: "yolact_edge_youtubevis_resnet50_847_50000.pth"
+    
+    # TODO: check redundancy later
+    categories: [0] 
+    pc_downsample_factor: 16
+    min_mask: 20 # minimum mask to be considered as an obstacle candidate
+    nms_filter: 0.3 # 3D non-max suppression threshold, [0, 1]
+    outlier_thresh: 0.5
+    
