@@ -13,8 +13,10 @@ from kf_hungarian_tracker.obstacle_class import ObstacleClass
 from tf2_ros import LookupException
 from tf2_ros.buffer import Buffer
 from tf2_ros.transform_listener import TransformListener
-from tf2_geometry_msgs import do_transform_point, do_transform_vector3
-from geometry_msgs.msg import PointStamped, Vector3Stamped
+from scipy.spatial.transform import Rotation as R
+
+# from tf2_geometry_msgs import do_transform_point, do_transform_vector3
+# from geometry_msgs.msg import PointStamped, Vector3Stamped
 
 class KFHungarianTracker(Node):
     '''Use Kalman Fiter and Hungarian algorithm to track multiple dynamic obstacles
@@ -97,7 +99,7 @@ class KFHungarianTracker(Node):
         if self.global_frame is not None:
             try:
                 trans = self.tf_buffer.lookup_transform(self.global_frame, msg.header.frame_id, rclpy.time.Time())
-                msg.header.frame_id = self.global_frame
+                '''msg.header.frame_id = self.global_frame
                 for i in range(len(detections)):
                     # transform position (point)
                     p = PointStamped()
@@ -110,7 +112,20 @@ class KFHungarianTracker(Node):
                     # transform size (vector3)
                     s = Vector3Stamped()
                     s.vector = detections[i].size
-                    detections[i].size = do_transform_vector3(s, trans).vector
+                    detections[i].size = do_transform_vector3(s, trans).vector'''
+                r = R.from_quat([trans.transform.rotation.x, trans.transform.rotation.y, trans.transform.rotation.z, trans.transform.rotation.w])
+                msg.header.frame_id = self.global_frame
+                for i in range(len(detections)):
+                    p = [detections[i].position.x, detections[i].position.y, detections[i].position.z]
+                    p = r.apply(p)
+                    detections[i].position.x = p[0] + trans.transform.translation.x 
+                    detections[i].position.y = p[1] + trans.transform.translation.y
+                    detections[i].position.z = p[2] + trans.transform.translation.z
+                    s = [detections[i].size.x, detections[i].size.y, detections[i].size.z]
+                    s = r.apply(s)
+                    detections[i].size.x = s[0]
+                    detections[i].size.y = s[1]
+                    detections[i].size.z = s[2]
 
             except LookupException:
                 self.get_logger().info('fail to get tf from {} to {}'.format(msg.header.frame_id, self.global_frame))
@@ -166,7 +181,7 @@ class KFHungarianTracker(Node):
             marker_list = []
             # add current active obstacles
             for obs in filtered_obstacle_list:
-                obstacle_uuid = uuid.UUID(bytes=bytes(obs.msg.uuid.uuid))
+                obstacle_uuid = uuid.UUID(bytes=bytes(obs.msg.id.uuid))
                 (r, g, b) = colorsys.hsv_to_rgb(obstacle_uuid.int % 360 / 360., 1., 1.) # encode id with rgb color
                 # make a cube 
                 marker = Marker()
@@ -204,15 +219,15 @@ class KFHungarianTracker(Node):
                 arrow.scale.z = 0.05
                 marker_list.append(arrow)
             # add dead obstacles to delete in rviz
-            for uuid in dead_object_list:
+            for uuid_ in dead_object_list:
                 marker = Marker()
                 marker.header = msg.header
-                marker.ns = str(uuid)
+                marker.ns = str(uuid_)
                 marker.id = 0
                 marker.action = 2 # delete
                 arrow = Marker()
                 arrow.header = msg.header
-                arrow.ns = str(uuid)
+                arrow.ns = str(uuid_)
                 arrow.id = 1
                 arrow.action = 2
                 marker_list.append(marker)
@@ -241,7 +256,7 @@ class KFHungarianTracker(Node):
             if self.obstacle_list[obs].dying < self.death_threshold:
                 new_object_list.append(self.obstacle_list[obs])
             else:
-                obstacle_uuid = uuid.UUID(bytes=bytes(self.obstacle_list[obs].msg.uuid.uuid))
+                obstacle_uuid = uuid.UUID(bytes=bytes(self.obstacle_list[obs].msg.id.uuid))
                 dead_object_list.append(obstacle_uuid)
         
         # add newly born obstacles

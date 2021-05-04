@@ -13,8 +13,8 @@ def generate_launch_description():
 
     kf_hungarian_node = Node(
         package = 'kf_hungarian_tracker',
-        name = 'kf_hungarian_node',
-        executable = 'kf_hungarian_node',
+        node_namespace = 'kf_hungarian_node',
+        node_executable = 'kf_hungarian_node',
         parameters = [config]
         )
 
