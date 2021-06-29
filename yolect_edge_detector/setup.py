@@ -1,5 +1,5 @@
 from setuptools import setup
-import os, glob
+import glob
 
 package_name = 'yolect_edge_detector'
 
@@ -12,7 +12,8 @@ setup(
             ['resource/' + package_name]),
         ('share/' + package_name, ['package.xml']),
         ('share/' + package_name, glob.glob('config/*.yaml')),
-        ('share/' + package_name, glob.glob('launch/*.launch.py'))
+        ('share/' + package_name, glob.glob('launch/*.launch.py')),
+        ('share/' + package_name + '/weights', glob.glob('weights/*'))
     ],
     install_requires=['setuptools'],
     zip_safe=True,
