@@ -16,6 +16,7 @@ def generate_launch_description():
         package='yolact_edge_detector',
         name='yolact_edge_node',
         executable='yolact_edge_node',
+        output='screen',
         parameters=[config]
     )
 

@@ -1,7 +1,7 @@
 from setuptools import setup
 import glob
 
-package_name = 'yolect_edge_detector'
+package_name = 'yolact_edge_detector'
 
 setup(
     name=package_name,
@@ -11,8 +11,8 @@ setup(
         ('share/ament_index/resource_index/packages',
             ['resource/' + package_name]),
         ('share/' + package_name, ['package.xml']),
-        ('share/' + package_name, glob.glob('config/*.yaml')),
-        ('share/' + package_name, glob.glob('launch/*.launch.py')),
+        ('share/' + package_name + '/config', glob.glob('config/*.yaml')),
+        ('share/' + package_name + '/launch', glob.glob('launch/*.launch.py')),
         ('share/' + package_name + '/weights', glob.glob('weights/*'))
     ],
     install_requires=['setuptools'],
@@ -24,7 +24,7 @@ setup(
     tests_require=['pytest'],
     entry_points={
         'console_scripts': [
-            'yolact_edge_node = yolect_edge_detector.yolact_edge_node:main'
+            'yolact_edge_node = yolact_edge_detector.yolact_edge_node:main'
         ],
     },
 )

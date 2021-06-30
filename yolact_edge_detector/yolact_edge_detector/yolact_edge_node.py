@@ -16,6 +16,8 @@ class YOLACTEdgeDetector(Node):
 
     def __init__(self):
         super().__init__('detectron_node')
+        self._logger.info("asdads")
+
         self.declare_parameters(
             namespace='',
             parameters=[
@@ -35,6 +37,12 @@ class YOLACTEdgeDetector(Node):
         self.nms_filter = self.get_parameter("nms_filter")._value
         self.outlier_thresh = self.get_parameter("outlier_thresh")._value
 
+        import sys
+        self._logger.info(str(sys.argv))
+        sys.argv = [sys.argv[0]]
+
+        # parser = argparse.ArgumentParser(description='Process some integers.')
+
         # setup detectron model
         self.predictor = self.init_model()
 
@@ -43,7 +51,7 @@ class YOLACTEdgeDetector(Node):
             PointCloud2,
             self.get_parameter("pointcloud2_topic")._value,
             self.callback,
-            1)
+            10) # TODO: hangs with 1 ???
 
         # setup publisher
         self.detect_obj_pub = self.create_publisher(
@@ -62,10 +70,12 @@ class YOLACTEdgeDetector(Node):
         config = 'yolact_edge_vid_resnet50_config'
         dataset = 'youtube_vis_dataset'
         # Used tensorrt calibration
-        calib_images = os.path.join(
+        calib_images = os.path.join(  
             get_package_share_directory('yolact_edge_detector'),
             "/data/calib_images"
         )
+        # TODO: HARDCODED
+        calib_images = '/home/ernestas/yolact_dyn_ws/src/navigation2_dynamic/yolact_edge_detector/data/calib_images'
         # Override some default configuration
         config_ovr = {
             'use_fast_nms': True,  # Does not work with regular nms
@@ -78,15 +88,22 @@ class YOLACTEdgeDetector(Node):
         mean = [np.mean(x), np.mean(y), np.mean(z)]
         cov = np.diag(np.maximum(
             [np.var(x), np.var(y), np.var(z)], [0.01, 0.01, 0.01]))
-        rv = multivariate_normal(mean, cov)
+        if np.isnan(mean).any() or np.isnan(cov).any():
+            return idx
+        try:
+            rv = multivariate_normal(mean, cov)
+        except:
+            print(mean, cov)
+            exit(0)
         points = np.dstack((x, y, z))
         p = rv.pdf(points)
         return idx[p > self.outlier_thresh]
 
     def callback(self, msg):
         # check if there is subscirbers
-        if self.detect_obj_pub.get_subscription_count() == 0 and self.detect_img_pub.get_subscription_count() == 0:
-            return
+        # if self.detect_obj_pub.get_subscription_count() == 0 and self.detect_img_pub.get_subscription_count() == 0:
+        #     return
+        self._logger.info("pointcloud in!")
 
         # extract data from msg
         height = msg.height
@@ -131,7 +148,7 @@ class YOLACTEdgeDetector(Node):
         if num_classes == 0:
             return []
 
-        masks = pred["mask"].numpy().astype('uint8').reshape(
+        masks = pred["mask"].cpu().numpy().astype('uint8').reshape(
             (num_classes, -1))[:, ::self.pc_downsample_factor]
         # scores = pred["score"].numpy().astype(np.float)
 
@@ -143,6 +160,7 @@ class YOLACTEdgeDetector(Node):
                 idx = np.where(masks[i])[0]
                 idx = self.outlier_filter(x[idx], y[idx], z[idx], idx)
                 if idx.shape[0] < self.min_mask:
+                    self._logger.info("Min mask")
                     continue
                 obstacle_msg = Obstacle()
                 # pointcloud2 data has a different coordinate, swap y and z
@@ -162,11 +180,18 @@ class YOLACTEdgeDetector(Node):
                 obstacle_msg.size.z = np.float(z_max - z_min)
                 detections.append(obstacle_msg)
 
+        self._logger.info(str(len(detections)))
         return detections
 
     def detect(self):
+        self._logger.info(str(self.img.shape))
+        import cv2
+        self.img = cv2.resize(self.img, (480, 640))
         # call detectron2 model
         pred = self.predictor.predict(self.img, False)
+
+        if pred == None:
+            return
 
         # process pointcloud to get 3D position and size
         detections = self.process_points(pred)
