@@ -148,10 +148,13 @@ class YOLACTEdgeDetector(Node):
 
         masks = pred["mask"].cpu().numpy().astype('uint8').reshape(
             (num_classes, -1))[:, ::self.pc_downsample_factor]
+        scores = pred["score"]
 
         # estimate 3D position with simple averaging of obstacle's points
         detections = []
         for i in range(num_classes):
+            if scores[i] < 0.9:
+                continue
             # if user does not specify any interested category, keep all; else select those interested objects
             if (len(self.categories) == 0) or (pred["class"][i] in self.categories):
                 idx = np.where(masks[i])[0]
