@@ -127,8 +127,8 @@ class KFHungarianTracker(Node):
                     detections[i].size.y = s[1]
                     detections[i].size.z = s[2]
 
-            except LookupException:
-                self.get_logger().info('fail to get tf from {} to {}'.format(msg.header.frame_id, self.global_frame))
+            except LookupException as e:
+                self.get_logger().info(str(e))
                 return
 
         # hungarian matching
