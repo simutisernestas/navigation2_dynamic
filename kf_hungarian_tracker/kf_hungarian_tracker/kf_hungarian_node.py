@@ -66,7 +66,7 @@ class KFHungarianTracker(Node):
         # subscribe to detector 
         self.detection_sub = self.create_subscription(
             ObstacleArray,
-            'detection',
+            '/detection',
             self.callback,
             10)
 

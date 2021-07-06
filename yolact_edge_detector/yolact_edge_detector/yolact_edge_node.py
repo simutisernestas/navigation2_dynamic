@@ -16,8 +16,6 @@ class YOLACTEdgeDetector(Node):
 
     def __init__(self):
         super().__init__('detectron_node')
-        self._logger.info("asdads")
-
         self.declare_parameters(
             namespace='',
             parameters=[
@@ -26,22 +24,20 @@ class YOLACTEdgeDetector(Node):
                 ('model_weights_file', "model.trt"),
                 ('pc_downsample_factor', 16),
                 ('min_mask', 20),
-                ('categories', [0]),
+                ('categories', []),
                 ('nms_filter', 0.3),
                 ('outlier_thresh', 0.5)
             ])
         self.pc_downsample_factor = int(
             self.get_parameter("pc_downsample_factor")._value)
         self.min_mask = self.get_parameter("min_mask")._value
-        self.categories = self.get_parameter("categories")._value
+        self.categories = []
         self.nms_filter = self.get_parameter("nms_filter")._value
         self.outlier_thresh = self.get_parameter("outlier_thresh")._value
 
+        # dirty hack because of yolact_edge config implementation
         import sys
-        self._logger.info(str(sys.argv))
         sys.argv = [sys.argv[0]]
-
-        # parser = argparse.ArgumentParser(description='Process some integers.')
 
         # setup detectron model
         self.predictor = self.init_model()
@@ -51,11 +47,13 @@ class YOLACTEdgeDetector(Node):
             PointCloud2,
             self.get_parameter("pointcloud2_topic")._value,
             self.callback,
-            10) # TODO: hangs with 1 ???
+            10)  # TODO: hangs with 1.
+        # Messages should be stored in buffer. Callback should be fast!
+        # Currently prediction and processing happens inside the callback;
 
         # setup publisher
         self.detect_obj_pub = self.create_publisher(
-            ObstacleArray, 'detection', 2)
+            ObstacleArray, '/detection', 2)
         self.detect_img_pub = self.create_publisher(Image, 'image', 2)
 
         self.count = -1
@@ -70,7 +68,7 @@ class YOLACTEdgeDetector(Node):
         config = 'yolact_edge_vid_resnet50_config'
         dataset = 'youtube_vis_dataset'
         # Used tensorrt calibration
-        calib_images = os.path.join(  
+        calib_images = os.path.join(
             get_package_share_directory('yolact_edge_detector'),
             "/data/calib_images"
         )
@@ -150,7 +148,6 @@ class YOLACTEdgeDetector(Node):
 
         masks = pred["mask"].cpu().numpy().astype('uint8').reshape(
             (num_classes, -1))[:, ::self.pc_downsample_factor]
-        # scores = pred["score"].numpy().astype(np.float)
 
         # estimate 3D position with simple averaging of obstacle's points
         detections = []
@@ -160,7 +157,6 @@ class YOLACTEdgeDetector(Node):
                 idx = np.where(masks[i])[0]
                 idx = self.outlier_filter(x[idx], y[idx], z[idx], idx)
                 if idx.shape[0] < self.min_mask:
-                    self._logger.info("Min mask")
                     continue
                 obstacle_msg = Obstacle()
                 # pointcloud2 data has a different coordinate, swap y and z
@@ -180,13 +176,10 @@ class YOLACTEdgeDetector(Node):
                 obstacle_msg.size.z = np.float(z_max - z_min)
                 detections.append(obstacle_msg)
 
-        self._logger.info(str(len(detections)))
+        self._logger.info("N detection: " + str(len(detections)))
         return detections
 
     def detect(self):
-        self._logger.info(str(self.img.shape))
-        import cv2
-        self.img = cv2.resize(self.img, (480, 640))
         # call detectron2 model
         pred = self.predictor.predict(self.img, False)
 
@@ -199,20 +192,20 @@ class YOLACTEdgeDetector(Node):
         # publish detection result
         obstacle_array = ObstacleArray()
         obstacle_array.header = self.header
-        if self.detect_obj_pub.get_subscription_count() > 0:
-            obstacle_array.obstacles = detections
-            self.detect_obj_pub.publish(obstacle_array)
+        # if self.detect_obj_pub.get_subscription_count() > 0:
+        obstacle_array.obstacles = detections
+        self.detect_obj_pub.publish(obstacle_array)
 
         # visualize detection with detectron API
-        if self.detect_img_pub.get_subscription_count() > 0:
-            out_img_msg = Image()
-            out_img_msg.header = self.header
-            out_img_msg.height = pred["img"].shape[0]
-            out_img_msg.width = pred["img"].shape[1]
-            out_img_msg.encoding = 'rgb8'
-            out_img_msg.step = 3 * pred["img"].shape[1]
-            out_img_msg.data = pred["img"].flatten().tolist()
-            self.detect_img_pub.publish(out_img_msg)
+        # if self.detect_img_pub.get_subscription_count() > 0:
+        out_img_msg = Image()
+        out_img_msg.header = self.header
+        out_img_msg.height = pred["img"].shape[0]
+        out_img_msg.width = pred["img"].shape[1]
+        out_img_msg.encoding = 'bgr8'
+        out_img_msg.step = 3 * pred["img"].shape[1]
+        out_img_msg.data = pred["img"].flatten().tolist()
+        self.detect_img_pub.publish(out_img_msg)
 
 
 def main():

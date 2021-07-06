@@ -2,7 +2,7 @@ yolact_edge_node:
   ros__parameters:
     pointcloud2_topic: "/left_camera/depth/color/points"
     model_weights_file: "yolact_edge_vid_resnet50_847_50000.pth"
-    categories: [0] 
+    categories: []
     pc_downsample_factor: 16
     min_mask: 1 # minimum mask to be considered as an obstacle candidate
     nms_filter: 0.3 # 3D non-max suppression threshold, [0, 1]
